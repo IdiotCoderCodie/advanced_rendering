@@ -63,4 +63,3 @@ packages/
 #Test files
 *.testsettings
 PaperPlanes/PaperPlanes/shader-error.txt
-*.dds
