@@ -37,6 +37,8 @@ int                                 g_nNumActiveLights;
 int                                 g_nActiveLight;
 bool                                g_bShowHelp = false;    // If true, it renders the UI control text
 
+float								g_CurrentPulsatingHeadScale;
+
 // Direct3D11 resources
 CDXUTTextHelper*                    g_pTxtHelper = nullptr;
 CDXUTSDKMesh                        g_Mesh11;
@@ -55,6 +57,9 @@ ID3DX11EffectScalarVariable*        g_pfTime = nullptr;
 ID3DX11EffectVectorVariable*        g_pMaterialDiffuseColor = nullptr;
 ID3DX11EffectVectorVariable*        g_pMaterialAmbientColor = nullptr;
 ID3DX11EffectScalarVariable*        g_pnNumLights = nullptr;
+
+// My changes.
+ID3DX11EffectScalarVariable*		g_pPulsatingHeadScale = nullptr;
 
 
 //--------------------------------------------------------------------------------------
@@ -147,6 +152,7 @@ void InitApp()
     g_nActiveLight = 0;
     g_nNumActiveLights = 1;
     g_fLightScale = 1.0f;
+	g_CurrentPulsatingHeadScale = 5.0f;
 
     // Initialize dialogs
     g_D3DSettingsDlg.Init( &g_DialogResourceManager );
@@ -174,6 +180,9 @@ void InitApp()
 
     iY += 24;
     g_SampleUI.AddButton( IDC_ACTIVE_LIGHT, L"Change active light (K)", 35, iY += 24, 125, 22, 'K' );
+
+	iY += 24;
+	//g_SampleUI.AddStatic()
 }
 
 
@@ -427,6 +436,8 @@ HRESULT CALLBACK OnD3D11CreateDevice( ID3D11Device* pd3dDevice, const DXGI_SURFA
     g_pMaterialDiffuseColor = g_pEffect->GetVariableByName( "g_MaterialDiffuseColor" )->AsVector();
     g_pnNumLights = g_pEffect->GetVariableByName( "g_nNumLights" )->AsScalar();
 
+	g_pPulsatingHeadScale = g_pEffect->GetVariableByName("g_PulsatingHeadScale")->AsScalar();
+
     // Create our vertex input layout
     const D3D11_INPUT_ELEMENT_DESC layout[] =
     {
@@ -535,6 +546,8 @@ void CALLBACK OnD3D11FrameRender( ID3D11Device* pd3dDevice, ID3D11DeviceContext*
 
     V( g_pfTime->SetFloat( ( float )fTime ) );
     V( g_pnNumLights->SetInt( g_nNumActiveLights ) );
+
+	V(g_pPulsatingHeadScale->SetFloat(g_CurrentPulsatingHeadScale));
 
     // Render the scene with this technique as defined in the .fx file
     ID3DX11EffectTechnique* pRenderTechnique;
