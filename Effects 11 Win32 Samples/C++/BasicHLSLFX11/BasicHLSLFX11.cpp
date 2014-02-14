@@ -37,7 +37,7 @@ int                                 g_nNumActiveLights;
 int                                 g_nActiveLight;
 bool                                g_bShowHelp = false;    // If true, it renders the UI control text
 
-float								g_CurrentPulsatingHeadScale;
+float								g_fCurrentPulsatingHeadScale;
 
 // Direct3D11 resources
 CDXUTTextHelper*                    g_pTxtHelper = nullptr;
@@ -53,6 +53,8 @@ ID3DX11EffectVectorVariable*        g_pLightDir = nullptr;
 ID3DX11EffectVectorVariable*        g_pLightDiffuse = nullptr;
 ID3DX11EffectMatrixVariable*        g_pmWorldViewProjection = nullptr;
 ID3DX11EffectMatrixVariable*        g_pmWorld = nullptr;
+ID3DX11EffectMatrixVariable*        g_pmView = nullptr;
+ID3DX11EffectMatrixVariable*        g_pmProjection = nullptr;
 ID3DX11EffectScalarVariable*        g_pfTime = nullptr;
 ID3DX11EffectVectorVariable*        g_pMaterialDiffuseColor = nullptr;
 ID3DX11EffectVectorVariable*        g_pMaterialAmbientColor = nullptr;
@@ -60,7 +62,7 @@ ID3DX11EffectScalarVariable*        g_pnNumLights = nullptr;
 
 // My changes.
 ID3DX11EffectScalarVariable*		g_pPulsatingHeadScale = nullptr;
-
+ID3DX11EffectMatrixVariable*        g_pHeadRotation = nullptr;
 
 //--------------------------------------------------------------------------------------
 // UI control IDs
@@ -74,6 +76,8 @@ ID3DX11EffectScalarVariable*		g_pPulsatingHeadScale = nullptr;
 #define IDC_LIGHT_SCALE         9
 #define IDC_LIGHT_SCALE_STATIC  10
 #define IDC_TOGGLEWARP          11
+#define IDC_BULGESCALE          12
+#define IDC_BULGESCALE_STATIC   13
 
 //--------------------------------------------------------------------------------------
 // Forward declarations 
@@ -152,23 +156,26 @@ void InitApp()
     g_nActiveLight = 0;
     g_nNumActiveLights = 1;
     g_fLightScale = 1.0f;
-	g_CurrentPulsatingHeadScale = 5.0f;
+	g_fCurrentPulsatingHeadScale = 5.0f;
 
     // Initialize dialogs
     g_D3DSettingsDlg.Init( &g_DialogResourceManager );
     g_HUD.Init( &g_DialogResourceManager );
     g_SampleUI.Init( &g_DialogResourceManager );
 
-    g_HUD.SetCallback( OnGUIEvent ); int iY = 10;
+    g_HUD.SetCallback( OnGUIEvent ); 
+
+    int iY = 10;
+
     g_HUD.AddButton( IDC_TOGGLEFULLSCREEN, L"Toggle full screen", 0, iY, 170, 23 );
     g_HUD.AddButton( IDC_CHANGEDEVICE, L"Change device (F2)", 0, iY += 26, 170, 23, VK_F2 );
     g_HUD.AddButton( IDC_TOGGLEREF, L"Toggle REF (F3)", 0, iY += 26, 170, 23, VK_F3 );
     g_HUD.AddButton( IDC_TOGGLEWARP, L"Toggle WARP (F4)", 0, iY += 26, 170, 23, VK_F4 );
 
     g_SampleUI.SetCallback( OnGUIEvent ); iY = 10;
-
+    iY = -200;
     WCHAR sz[100];
-    iY += 24;
+    //iY += 24;
     swprintf_s( sz, 100, L"# Lights: %d", g_nNumActiveLights );
     g_SampleUI.AddStatic( IDC_NUM_LIGHTS_STATIC, sz, 35, iY += 24, 125, 22 );
     g_SampleUI.AddSlider( IDC_NUM_LIGHTS, 50, iY += 24, 100, 22, 1, MAX_LIGHTS, g_nNumActiveLights );
@@ -179,10 +186,12 @@ void InitApp()
     g_SampleUI.AddSlider( IDC_LIGHT_SCALE, 50, iY += 24, 100, 22, 0, 20, ( int )( g_fLightScale * 10.0f ) );
 
     iY += 24;
-    g_SampleUI.AddButton( IDC_ACTIVE_LIGHT, L"Change active light (K)", 35, iY += 24, 125, 22, 'K' );
+    g_SampleUI.AddButton( IDC_ACTIVE_LIGHT, L"Change active light (K)", 20, iY += 24, 125, 22, 'K' );
 
 	iY += 24;
-	//g_SampleUI.AddStatic()
+    swprintf_s(sz, 100, L"Bulge scale: %d", g_fCurrentPulsatingHeadScale);
+    g_SampleUI.AddStatic(IDC_BULGESCALE_STATIC, sz, 35, iY += 24, 125, 22);
+    g_SampleUI.AddSlider(IDC_BULGESCALE, 50, iY += 24, 100, 22, 0, 100, ( float )(g_fCurrentPulsatingHeadScale));
 }
 
 
@@ -331,12 +340,23 @@ void CALLBACK OnGUIEvent( UINT nEvent, int nControlID, CDXUTControl* pControl, v
             break;
 
         case IDC_LIGHT_SCALE:
-            g_fLightScale = ( float )( g_SampleUI.GetSlider( IDC_LIGHT_SCALE )->GetValue() * 0.10f );
+            {
+                g_fLightScale = ( float )( g_SampleUI.GetSlider( IDC_LIGHT_SCALE )->GetValue() * 0.10f );
 
-            WCHAR sz[100];
-            swprintf_s( sz, 100, L"Light scale: %0.2f", g_fLightScale );
-            g_SampleUI.GetStatic( IDC_LIGHT_SCALE_STATIC )->SetText( sz );
-            break;
+                WCHAR sz[100];
+                swprintf_s( sz, 100, L"Light scale: %0.2f", g_fLightScale );
+                g_SampleUI.GetStatic( IDC_LIGHT_SCALE_STATIC )->SetText( sz );
+                break;
+            }
+
+        case IDC_BULGESCALE:
+            {
+                g_fCurrentPulsatingHeadScale = ( float )(g_SampleUI.GetSlider(IDC_BULGESCALE)->GetValue() );
+                WCHAR sz[100];
+                swprintf_s(sz, 100, L"Head Scale: %0.2f", g_fCurrentPulsatingHeadScale);
+                g_SampleUI.GetStatic(IDC_BULGESCALE_STATIC)->SetText(sz);
+                break;
+            }
     }
 
 }
@@ -431,12 +451,16 @@ HRESULT CALLBACK OnD3D11CreateDevice( ID3D11Device* pd3dDevice, const DXGI_SURFA
     g_pLightDiffuse = g_pEffect->GetVariableByName( "g_LightDiffuse" )->AsVector();
     g_pmWorldViewProjection = g_pEffect->GetVariableByName( "g_mWorldViewProjection" )->AsMatrix();
     g_pmWorld = g_pEffect->GetVariableByName( "g_mWorld" )->AsMatrix();
+    g_pmView = g_pEffect->GetVariableByName( "g_mView" )->AsMatrix();
+    g_pmProjection = g_pEffect->GetVariableByName( "g_mProjection" )->AsMatrix();
     g_pfTime = g_pEffect->GetVariableByName( "g_fTime" )->AsScalar();
     g_pMaterialAmbientColor = g_pEffect->GetVariableByName( "g_MaterialAmbientColor" )->AsVector();
     g_pMaterialDiffuseColor = g_pEffect->GetVariableByName( "g_MaterialDiffuseColor" )->AsVector();
     g_pnNumLights = g_pEffect->GetVariableByName( "g_nNumLights" )->AsScalar();
 
 	g_pPulsatingHeadScale = g_pEffect->GetVariableByName("g_PulsatingHeadScale")->AsScalar();
+
+    g_pHeadRotation = g_pEffect->GetVariableByName("g_mHeadRotation")->AsMatrix();
 
     // Create our vertex input layout
     const D3D11_INPUT_ELEMENT_DESC layout[] =
@@ -516,6 +540,8 @@ void CALLBACK OnD3D11FrameRender( ID3D11Device* pd3dDevice, ID3D11DeviceContext*
     auto pDSV = DXUTGetD3D11DepthStencilView();
     pd3dImmediateContext->ClearDepthStencilView( pDSV, D3D11_CLEAR_DEPTH, 1.0, 0 );
 
+    XMMATRIX mHeadRotation = XMMatrixRotationY(45.0f);
+
     // Get the projection & view matrix from the camera class
     XMMATRIX mWorld = g_mCenterMesh * g_Camera.GetWorldMatrix();
     XMMATRIX mProj = g_Camera.GetProjMatrix();
@@ -544,10 +570,22 @@ void CALLBACK OnD3D11FrameRender( ID3D11Device* pd3dDevice, ID3D11DeviceContext*
     XMStoreFloat4x4( &m, mWorld );
     V( g_pmWorld->SetMatrix( ( float* )&m) );
 
+    XMStoreFloat4x4(&m, mView);
+    V( g_pmView->SetMatrix( ( float* )&m) );
+
+    XMStoreFloat4x4(&m, mProj);
+    V( g_pmProjection->SetMatrix( ( float* )&m) );
+
     V( g_pfTime->SetFloat( ( float )fTime ) );
     V( g_pnNumLights->SetInt( g_nNumActiveLights ) );
 
-	V(g_pPulsatingHeadScale->SetFloat(g_CurrentPulsatingHeadScale));
+    //XMMATRIX mHeadRotation = XMMatrixIdentity();
+   
+	V(g_pPulsatingHeadScale->SetFloat(g_fCurrentPulsatingHeadScale));
+
+     
+     XMStoreFloat4x4(&m, mHeadRotation);
+     V(g_pHeadRotation->SetMatrix((float*)&m));
 
     // Render the scene with this technique as defined in the .fx file
     ID3DX11EffectTechnique* pRenderTechnique;

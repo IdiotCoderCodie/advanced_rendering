@@ -22,7 +22,11 @@ Texture2D g_MeshTexture;            // Color texture for mesh
 
 float    g_fTime;                   // App's time in seconds
 float4x4 g_mWorld;                  // World matrix for object
+float4x4 g_mView;
+float4x4 g_mProjection;
 float4x4 g_mWorldViewProjection;    // World * View * Projection matrix
+
+float4x4 g_mHeadRotation; 
 
 float g_PulsatingHeadScale; 
 
@@ -125,15 +129,22 @@ VS_OUTPUT VS_Ex1(float4 vPos : POSITION,
 	vAnimatedPos += 10.0f * float4(vNormal, 0);
 	if (bAnimate)
 	{
-		float magnitude = 10.0;
+		float magnitude = g_PulsatingHeadScale;
 
 		float scale = magnitude * smoothstep(140, 160, vAnimatedPos.z) * (sin(g_fTime) + 1.0);
 		vAnimatedPos += scale * float4(vNormal, 0);
 		//vAnimatedPos += float4(vNormal, 0) * (sin(g_fTime + 5.5) + 0.5) * 5;
 	}
 
+    float4x4 newWorldMat = g_mWorld;
+    if(float(vAnimatedPos.z) > 150.0f)
+    {
+        worldMat = mul(float4x4(newWorldMat), float4x4(g_mHeadRotation));
+    }
+
+    Output.Position = mul(vAnimatedPos, mul(newWorldMat, mul(g_mView, g_mProjection)));
 	// Transform the position from object space to homogeneous projection space
-	Output.Position = mul(vAnimatedPos, g_mWorldViewProjection);
+	//Output.Position = mul(vAnimatedPos, g_mWorldViewProjection);
 
 	// Transform the normal from object space to world space    
 	vNormalWorldSpace = normalize(mul(vNormal, (float3x3)g_mWorld)); // normal (world space)
