@@ -38,6 +38,7 @@ int                                 g_nActiveLight;
 bool                                g_bShowHelp = false;    // If true, it renders the UI control text
 
 float								g_fCurrentPulsatingHeadScale;
+float								g_fHeadTurningAngle;
 
 // Direct3D11 resources
 CDXUTTextHelper*                    g_pTxtHelper = nullptr;
@@ -62,7 +63,7 @@ ID3DX11EffectScalarVariable*        g_pnNumLights = nullptr;
 
 // My changes.
 ID3DX11EffectScalarVariable*		g_pPulsatingHeadScale = nullptr;
-ID3DX11EffectMatrixVariable*        g_pHeadRotation = nullptr;
+ID3DX11EffectScalarVariable*        g_pHeadRotation = nullptr;
 
 //--------------------------------------------------------------------------------------
 // UI control IDs
@@ -78,6 +79,8 @@ ID3DX11EffectMatrixVariable*        g_pHeadRotation = nullptr;
 #define IDC_TOGGLEWARP          11
 #define IDC_BULGESCALE          12
 #define IDC_BULGESCALE_STATIC   13
+#define IDC_HEADROTATION		14
+#define IDC_HEADROTATION_STATIC 15
 
 //--------------------------------------------------------------------------------------
 // Forward declarations 
@@ -157,6 +160,7 @@ void InitApp()
     g_nNumActiveLights = 1;
     g_fLightScale = 1.0f;
 	g_fCurrentPulsatingHeadScale = 5.0f;
+	g_fHeadTurningAngle = 0.0f;
 
     // Initialize dialogs
     g_D3DSettingsDlg.Init( &g_DialogResourceManager );
@@ -192,6 +196,11 @@ void InitApp()
     swprintf_s(sz, 100, L"Bulge scale: %d", g_fCurrentPulsatingHeadScale);
     g_SampleUI.AddStatic(IDC_BULGESCALE_STATIC, sz, 35, iY += 24, 125, 22);
     g_SampleUI.AddSlider(IDC_BULGESCALE, 50, iY += 24, 100, 22, 0, 100, ( float )(g_fCurrentPulsatingHeadScale));
+
+	iY += 24;
+	swprintf_s(sz, 100, L"Head Rotation: %f", g_fHeadTurningAngle);
+	g_SampleUI.AddStatic(IDC_HEADROTATION_STATIC, sz, 15, iY += 24, 125, 22);
+	g_SampleUI.AddSlider(IDC_HEADROTATION, 50, iY += 24, 100, 22, -100, 100, (float)(g_fHeadTurningAngle * 100.0f));
 }
 
 
@@ -357,6 +366,14 @@ void CALLBACK OnGUIEvent( UINT nEvent, int nControlID, CDXUTControl* pControl, v
                 g_SampleUI.GetStatic(IDC_BULGESCALE_STATIC)->SetText(sz);
                 break;
             }
+		case IDC_HEADROTATION:
+			{
+				g_fHeadTurningAngle = (float)(g_SampleUI.GetSlider(IDC_HEADROTATION)->GetValue() * 0.01f);
+				WCHAR sz[100];
+				swprintf_s(sz, 100, L"Head Rotation: %0.2f", g_fHeadTurningAngle);
+				g_SampleUI.GetStatic(IDC_HEADROTATION_STATIC)->SetText(sz);
+				break;
+			}
     }
 
 }
@@ -460,7 +477,7 @@ HRESULT CALLBACK OnD3D11CreateDevice( ID3D11Device* pd3dDevice, const DXGI_SURFA
 
 	g_pPulsatingHeadScale = g_pEffect->GetVariableByName("g_PulsatingHeadScale")->AsScalar();
 
-    g_pHeadRotation = g_pEffect->GetVariableByName("g_mHeadRotation")->AsMatrix();
+    g_pHeadRotation = g_pEffect->GetVariableByName("g_mHeadRotation")->AsScalar();
 
     // Create our vertex input layout
     const D3D11_INPUT_ELEMENT_DESC layout[] =
@@ -584,8 +601,8 @@ void CALLBACK OnD3D11FrameRender( ID3D11Device* pd3dDevice, ID3D11DeviceContext*
 	V(g_pPulsatingHeadScale->SetFloat(g_fCurrentPulsatingHeadScale));
 
      
-     XMStoreFloat4x4(&m, mHeadRotation);
-     V(g_pHeadRotation->SetMatrix((float*)&m));
+    // XMStoreFloat4x4(&m, mHeadRotation);
+     V(g_pHeadRotation->SetFloat(g_fHeadTurningAngle));
 
     // Render the scene with this technique as defined in the .fx file
     ID3DX11EffectTechnique* pRenderTechnique;

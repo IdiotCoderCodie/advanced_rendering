@@ -26,7 +26,7 @@ float4x4 g_mView;
 float4x4 g_mProjection;
 float4x4 g_mWorldViewProjection;    // World * View * Projection matrix
 
-float4x4 g_mHeadRotation; 
+float g_mHeadRotation; 
 
 float g_PulsatingHeadScale; 
 
@@ -62,6 +62,8 @@ struct VS_OUTPUT
 };
 
 
+
+
 //--------------------------------------------------------------------------------------
 // This shader computes standard transform and lighting
 //--------------------------------------------------------------------------------------
@@ -77,17 +79,61 @@ VS_OUTPUT RenderSceneVS( float4 vPos : POSITION,
   
 	float4 vAnimatedPos = vPos;
 
+	float cosTime = cos(g_fTime);
+	float sinTime = sin(g_fTime);
+
 	//vNormal = normalize(vNormal);
 
     // Animation the vertex based on time and the vertex's object space position
-    if( bAnimate )
-		vAnimatedPos += float4(vNormal, 0) * (sin(g_fTime+5.5)+0.5)*5;
+   // if( bAnimate )
+		//vAnimatedPos += float4(vNormal, 0) * (sin(g_fTime+5.5)+0.5)*5;
     
+	float3 headRotation;
+	headRotation.z = smoothstep(160, 165, vAnimatedPos.z) * sinTime;
+	float4 testPosition = vPos;
+
+	vAnimatedPos = vPos + float4(0.0, -35.0, 0.0, 0.0);
+
+	headRotation.z = 0.0f;
+	float4x4 mHeadRotationZ =
+	{
+		cos(headRotation.z), -sin(headRotation.z), 0.0, 0.0,
+		sin(headRotation.z), cos(headRotation.z), 0.0, 0.0,
+		0.0, 0.0, 1.0, 0.0,
+		0.0, 0.0, 0.0, 1.0
+	};
+
+	headRotation.y = smoothstep(160, 180, vAnimatedPos.z) * g_mHeadRotation;
+	//headRotationY = 0.0f; // Temporarily resetting to zero for no rotation.
+	float4x4 mHeadRotationY =
+	{
+		cos(headRotation.y), 0.0, sin(headRotation.y), 0.0,
+		0.0, 1.0, 0.0, 0.0,
+		-sin(headRotation.y), 0.0, cos(headRotation.y), 0.0,
+		0.0, 0.0, 0.0, 1.0
+	};
+
+
+	headRotation.x = smoothstep(160, 165, vAnimatedPos.z) * cosTime;
+	headRotation.x = 0.0f;
+	float4x4 mHeadRotationX =
+	{
+		1.0, 0.0, 0.0, 0.0,
+		0.0, cos(headRotation.x), -sin(headRotation.x), 0.0,
+		0.0, sin(headRotation.x), cos(headRotation.x), 0.0,
+		0.0, 0.0, 0.0, 1.0
+	};
+
+	float4x4 mFinalHeadRotation = mul(mHeadRotationX, mul(mHeadRotationY, mHeadRotationZ));
+	float4x4 newWorldMat = mul(g_mWorld, mFinalHeadRotation);
+
+	Output.Position = mul(vAnimatedPos, mul(newWorldMat, mul(g_mView, g_mProjection)));
+
     // Transform the position from object space to homogeneous projection space
-    Output.Position = mul(vAnimatedPos, g_mWorldViewProjection);
+    //Output.Position = mul(vAnimatedPos, g_mWorldViewProjection);
     
     // Transform the normal from object space to world space    
-    vNormalWorldSpace = normalize(mul(vNormal, (float3x3)g_mWorld)); // normal (world space)
+	vNormalWorldSpace = normalize(mul(vNormal, (float3x3)newWorldMat)); // normal (world space)
     
     // Compute simple directional lighting equation
     float3 vTotalLightDiffuse = float3(0,0,0);
@@ -124,23 +170,52 @@ VS_OUTPUT VS_Ex1(float4 vPos : POSITION,
 	float4 vAnimatedPos = vPos;
 
 	//vNormal = normalize(vNormal);
-
+	float cosTime = cos(g_fTime);
+	float sinTime = sin(g_fTime);
 	// Animation the vertex based on time and the vertex's object space position
 	vAnimatedPos += 10.0f * float4(vNormal, 0);
 	if (bAnimate)
 	{
 		float magnitude = g_PulsatingHeadScale;
 
-		float scale = magnitude * smoothstep(140, 160, vAnimatedPos.z) * (sin(g_fTime) + 1.0);
+		float scale = magnitude * smoothstep(160, 165, vAnimatedPos.z) * (sin(g_fTime) + 1.0);
 		vAnimatedPos += scale * float4(vNormal, 0);
 		//vAnimatedPos += float4(vNormal, 0) * (sin(g_fTime + 5.5) + 0.5) * 5;
 	}
 
-    float4x4 newWorldMat = g_mWorld;
-    if(float(vAnimatedPos.z) > 150.0f)
-    {
-        worldMat = mul(float4x4(newWorldMat), float4x4(g_mHeadRotation));
-    }
+	//float4x4 newWorldMat = g_mWorld;
+	float headRotationZ = smoothstep(150, 165, vAnimatedPos.z) * sinTime;
+    
+	float4x4 mHeadRotationZ = 
+	{ 
+		cos(headRotationZ), -sin(headRotationZ), 0.0			, 0.0,
+		sin(headRotationZ), cos(headRotationZ) , 0.0			, 0.0,
+		0.0				 , 0.0				   , 1.0			, 0.0,
+		0.0				 , 0.0				   , 0.0			, 1.0 
+	};
+
+	float headRotationY = smoothstep(160, 165, vAnimatedPos.z) * sinTime;
+	headRotationY = 0.0f; // Temporarily resetting to zero for no rotation.
+	float4x4 mHeadRotationY =
+	{
+		cos(headRotationY)	, 0.0			, sin(headRotationY), 0.0,
+		0.0					, 1.0			, 0.0				, 0.0,
+		-sin(headRotationY) , 0.0			, cos(headRotationY), 0.0,
+		0.0					, 0.0			, 0.0				, 1.0
+	};
+	
+
+	float headRotationX = smoothstep(160, 165, vAnimatedPos.z) * cosTime;
+	float4x4 mHeadRotationX = 
+	{
+		1.0, 0.0				, 0.0					, 0.0,
+		0.0, cos(headRotationX)	, -sin(headRotationX)	, 0.0,
+		0.0, sin(headRotationX)	, cos(headRotationX)	, 0.0,
+		0.0, 0.0				, 0.0					, 1.0
+	};
+
+	float4x4 mFinalHeadRotation = mul(mHeadRotationY, mul(mHeadRotationX, mHeadRotationZ));
+	float4x4 newWorldMat = mul(g_mWorld, mFinalHeadRotation);
 
     Output.Position = mul(vAnimatedPos, mul(newWorldMat, mul(g_mView, g_mProjection)));
 	// Transform the position from object space to homogeneous projection space
@@ -255,14 +330,14 @@ technique11 RenderSceneWithTexture1Light
 
         SetDepthStencilState( EnableDepth, 0 );
     }
-	pass P1
+	/*pass P1
 	{
 		SetBlendState(AlphaBlendingOn, float4(0.0f, 0.0f, 0.0f, 0.0f), 0xFFFFFFFF);
 		SetVertexShader( CompileShader( vs_4_0_level_9_1, VS_Ex1( 1, true, true ) ) );
 		SetGeometryShader(NULL);
 		SetPixelShader(CompileShader(ps_4_0_level_9_1, AuraTest(true)));
 		SetDepthStencilState(EnableDepth, 0);
-	}
+	}*/
 }
 
 
@@ -277,18 +352,18 @@ technique11 RenderSceneWithTexture2Light
         
         SetDepthStencilState( EnableDepth, 0 );
     }
-	pass P1
-	{
-		/*AlphaBlendEnable = true;
-		SrcBlend = SrcAlpha;
-		DestBlend = One;*/
-		SetBlendState(AlphaBlendingOn, float4(0.0f, 0.0f, 0.0f, 0.0f), 0xFFFFFFFF);
+	//pass P1
+	//{
+	//	/*AlphaBlendEnable = true;
+	//	SrcBlend = SrcAlpha;
+	//	DestBlend = One;*/
+	//	SetBlendState(AlphaBlendingOn, float4(0.0f, 0.0f, 0.0f, 0.0f), 0xFFFFFFFF);
 
-		SetVertexShader(CompileShader(vs_4_0_level_9_1, VS_Ex1(2, true, true)));
-		SetGeometryShader(NULL);
-		SetPixelShader(CompileShader(ps_4_0_level_9_1, AuraTest(true)));
-		SetDepthStencilState(EnableDepth, 0);
-	}
+	//	SetVertexShader(CompileShader(vs_4_0_level_9_1, VS_Ex1(2, true, true)));
+	//	SetGeometryShader(NULL);
+	//	SetPixelShader(CompileShader(ps_4_0_level_9_1, AuraTest(true)));
+	//	SetDepthStencilState(EnableDepth, 0);
+	//}
 }
 
 technique11 RenderSceneWithTexture3Light
@@ -302,14 +377,14 @@ technique11 RenderSceneWithTexture3Light
 
         SetDepthStencilState( EnableDepth, 0 );
     }
-	pass P1
+	/*pass P1
 	{
 		SetBlendState(AlphaBlendingOn, float4(0.0f, 0.0f, 0.0f, 0.0f), 0xFFFFFFFF);
 		SetVertexShader(CompileShader(vs_4_0_level_9_1, VS_Ex1(3, true, true)));
 		SetGeometryShader(NULL);
 		SetPixelShader(CompileShader(ps_4_0_level_9_1, AuraTest(true)));
 		SetDepthStencilState(EnableDepth, 0);
-	}
+	}*/
 }
 
 technique11 RenderSceneNoTexture
@@ -322,12 +397,12 @@ technique11 RenderSceneNoTexture
 
         SetDepthStencilState( EnableDepth, 0 );
     }
-	pass P1
+	/*pass P1
 	{
 		SetBlendState(AlphaBlendingOn, float4(0.0f, 0.0f, 0.0f, 0.0f), 0xFFFFFFFF);
 		SetVertexShader(CompileShader(vs_4_0_level_9_1, VS_Ex1(1, true, true)));
 		SetGeometryShader(NULL);
 		SetPixelShader(CompileShader(ps_4_0_level_9_1, RenderScenePS(true)));
 		SetDepthStencilState(EnableDepth, 0);
-	}
+	}*/
 }
